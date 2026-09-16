@@ -1,0 +1,71 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ticketbook
+      POSTGRES_PASSWORD: ticketbook
+      POSTGRES_DB: ticketbook_development
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      # -d matters: without it pg_isready probes a database named after the user,
+      # which logs a FATAL every 5s even though the server is fine.
+      test: ["CMD-SHELL", "pg_isready -U ticketbook -d ticketbook_development"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redisdata:/data
+    ports:
+      - "6380:6379"
+
+  web:
+    build: .
+    command: bash -c "rm -f tmp/pids/server.pid && bin/rails server -b 0.0.0.0"
+    environment: &app_env
+      DATABASE_HOST: db
+      DATABASE_USER: ticketbook
+      DATABASE_PASSWORD: ticketbook
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - .:/app
+      - bundle:/usr/local/bundle
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    stdin_open: true    # so `docker compose attach web` gives you a debugger
+    tty: true
+
+  sidekiq:
+    build: .
+    command: bundle exec sidekiq
+    environment: *app_env
+    volumes:
+      - .:/app
+      - bundle:/usr/local/bundle
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  css:
+    build: .
+    command: bin/rails tailwindcss:watch
+    volumes:
+      - .:/app
+      - bundle:/usr/local/bundle
+
+volumes:
+  pgdata:
+  redisdata:
+  bundle:

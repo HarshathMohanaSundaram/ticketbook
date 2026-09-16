@@ -1,0 +1,23 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  host: <%= ENV.fetch("DATABASE_HOST", "localhost") %>
+  username: <%= ENV.fetch("DATABASE_USER", "postgres") %>
+  password: <%= ENV.fetch("DATABASE_PASSWORD", "") %>
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS", 15) %>
+
+development:
+  <<: *default
+  database: ticketbook_development
+
+test:
+  <<: *default
+  database: ticketbook_test
+  # The twelve-thread concurrency spec needs a real connection per thread.
+  # Leave this at 15 or that spec will hang instead of failing.
+  pool: 15
+
+production:
+  <<: *default
+  database: ticketbook_production
+  url: <%= ENV["DATABASE_URL"] %>
