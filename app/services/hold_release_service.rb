@@ -16,17 +16,26 @@ class HoldReleaseService < ApplicationService
   end
 
   def call
+    # Cheap pre-check to avoid opening a transaction for a hold that is obviously
+    # finished. It is only an optimisation -- the authoritative check happens
+    # under the row lock below.
     return success(@hold, already: true) unless @hold.active?
 
-    @locked ? release : ApplicationRecord.transaction { release }
+    outcome = @locked ? release : ApplicationRecord.transaction { release }
 
-    success(@hold)
+    success(@hold.reload, already: outcome == :stale)
   end
 
   private
 
   def release
-    seats = TripSeat.where(hold_id: @hold.id).order(:id)
+    # Re-read under the lock. A confirmation may have converted this hold while
+    # this job was waiting for the lock, in which case the object we were handed
+    # is stale and releasing would overwrite a booked hold's status.
+    hold = @locked ? @hold : Hold.lock.find(@hold.id)
+    return :stale unless hold.active?
+
+    seats = TripSeat.where(hold_id: hold.id).order(:id)
     seats = seats.lock unless @locked
 
     seats.each do |seat|
@@ -37,6 +46,7 @@ class HoldReleaseService < ApplicationService
       seat.held? ? seat.release! : seat.save!
     end
 
-    @hold.update!(status: @reason == :expired ? "expired" : "released")
+    hold.update!(status: @reason == :expired ? "expired" : "released")
+    :released
   end
 end

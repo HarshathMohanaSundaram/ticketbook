@@ -38,8 +38,8 @@
     </table>
 
     <div class="mt-5 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
-      <span class="cursor-not-allowed rounded-md bg-slate-300 px-5 py-2 font-medium text-white"
-            title="Booking confirmation is the next feature">Confirm booking</span>
+      <%= link_to "Continue to passenger details", new_hold_booking_path(@hold),
+            class: "rounded-md bg-slate-900 px-5 py-2 font-medium text-white hover:bg-slate-700" %>
       <%= button_to "Release seats", hold_path(@hold), method: :delete,
             class: "rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-100" %>
     </div>

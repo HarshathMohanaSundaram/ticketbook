@@ -23,6 +23,7 @@
 
         <div class="flex items-center gap-3 text-sm">
           <% if signed_in? %>
+            <%= link_to "My bookings", bookings_path, class: "font-medium text-slate-700 hover:text-slate-900" %>
             <span class="text-slate-600"><%= current_user.email %></span>
             <%= button_to "Sign out", session_path, method: :delete,
                   class: "rounded-md border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-100" %>

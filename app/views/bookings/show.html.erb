@@ -1,0 +1,77 @@
+<% content_for :title, "Ticket #{@booking.pnr}" %>
+
+<div class="mx-auto max-w-2xl">
+  <%= link_to "&larr; All bookings".html_safe, bookings_path, class: "text-sm text-slate-600 underline" %>
+
+  <div class="mt-3 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-900 px-5 py-4 text-white">
+      <div>
+        <p class="text-xs uppercase tracking-wide text-slate-300">PNR</p>
+        <p class="font-mono text-xl font-semibold tracking-widest"><%= @booking.pnr %></p>
+      </div>
+      <span class="rounded-full px-3 py-1 text-xs font-medium
+        <%= @booking.confirmed? ? 'bg-emerald-500 text-white' : 'bg-slate-500 text-white' %>">
+        <%= @booking.status.humanize %>
+      </span>
+    </div>
+
+    <div class="px-5 py-4">
+      <h1 class="font-semibold"><%= @trip.operator_name %></h1>
+      <p class="mt-1 text-sm text-slate-600"><%= @trip.bus.label %> &middot; <%= @trip.bus.registration_number %></p>
+
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-400">From</p>
+          <p class="font-medium"><%= @trip.origin_city.name %></p>
+          <p class="text-sm text-slate-600">
+            <%= l @booking.departs_at, format: :time_of_day %>, <%= @booking.departs_at.strftime("%-d %b") %>
+          </p>
+          <% if @booking.boarding_stop %>
+            <p class="mt-1 text-sm text-slate-500"><%= @booking.boarding_stop.label %></p>
+          <% end %>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-400">To</p>
+          <p class="font-medium"><%= @trip.destination_city.name %></p>
+          <p class="text-sm text-slate-600"><%= l @trip.arrives_at, format: :time_of_day %></p>
+          <% if @booking.dropping_stop %>
+            <p class="mt-1 text-sm text-slate-500"><%= @booking.dropping_stop.label %></p>
+          <% end %>
+        </div>
+      </div>
+
+      <table class="mt-5 w-full text-sm">
+        <thead>
+          <tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-400">
+            <th class="pb-2">Passenger</th><th class="pb-2">Seat</th><th class="pb-2 text-right">Fare</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @tickets.each do |ticket| %>
+            <tr class="border-b border-slate-100">
+              <td class="py-2">
+                <%= ticket.passenger_name %>
+                <% if ticket.passenger_age.present? %>
+                  <span class="text-slate-500">(<%= ticket.passenger_age %><%= ticket.gender.present? ? ", #{ticket.gender.first.upcase}" : "" %>)</span>
+                <% end %>
+              </td>
+              <td class="py-2"><%= ticket.seat_number %> <span class="text-slate-500"><%= ticket.berth_type %></span></td>
+              <td class="py-2 text-right"><%= number_to_currency(ticket.price_paise / 100.0, unit: "&#8377;".html_safe, precision: 0) %></td>
+            </tr>
+          <% end %>
+          <tr>
+            <td class="py-2 font-semibold" colspan="2">Total paid</td>
+            <td class="py-2 text-right font-semibold"><%= number_to_currency(@booking.total_paise / 100.0, unit: "&#8377;".html_safe, precision: 0) %></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <% if @booking.confirmed? %>
+        <p class="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
+          Free cancellation until <%= l(@booking.departs_at - Booking::CANCELLATION_CUTOFF, format: :time_of_day) %>,
+          minus a &#8377;<%= Booking::CANCELLATION_FEE_PAISE / 100 %> fee.
+        </p>
+      <% end %>
+    </div>
+  </div>
+</div>
