@@ -9,6 +9,9 @@ gem "puma", ">= 6.0"
 # Background jobs + cache store
 gem "redis", ">= 5.0"
 gem "sidekiq", "~> 7.3"
+# Schedules the sweeper. The per-hold expiry job is precise; the sweeper only
+# repairs the display if a scheduled job is ever lost, so it runs every 15 min.
+gem "sidekiq-cron"
 # connection_pool 3.0 changed TimedStack#pop's arity; Sidekiq 7.3 still calls the
 # old signature and its scheduler thread dies at boot. Stay on the 2.x line.
 gem "connection_pool", "~> 2.5"

@@ -58,6 +58,10 @@ class SeatHoldService < ApplicationService
       end
     end
 
+    # Enqueued after the transaction commits (see enqueue_after_transaction_commit),
+    # so the worker can never look up a hold that has not landed yet.
+    HoldExpiryJob.set(wait_until: hold.expires_at).perform_later(hold.id)
+
     success(hold)
   rescue ActiveRecord::LockWaitTimeout
     # Someone else's transaction is holding these rows right now.

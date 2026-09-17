@@ -31,6 +31,13 @@ module App
     # Unit tests only: models, controllers and services. No view, helper or
     # routing specs -- markup is verified by looking at the page, not by
     # asserting on strings in it.
+    config.active_job.queue_adapter = :sidekiq
+
+    # Enqueue only once the surrounding transaction commits. Sidekiq is fast
+    # enough to pick up a job before the COMMIT lands, and the worker would then
+    # look up a hold that does not exist yet.
+    config.active_job.enqueue_after_transaction_commit = :always
+
     config.generators do |g|
       g.test_framework :rspec,
                        view_specs: false,
