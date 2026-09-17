@@ -28,6 +28,18 @@ module App
     # Common ones are `templates`, `generators`, or `middleware`, for example.
     config.autoload_lib(ignore: %w[assets tasks])
 
+    # Unit tests only: models, controllers and services. No view, helper or
+    # routing specs -- markup is verified by looking at the page, not by
+    # asserting on strings in it.
+    config.generators do |g|
+      g.test_framework :rspec,
+                       view_specs: false,
+                       helper_specs: false,
+                       routing_specs: false,
+                       fixture: false
+      g.helper false
+    end
+
     # Configuration for the application, engines, and railties goes here.
     #
     # These settings can be overridden in specific environments using the files

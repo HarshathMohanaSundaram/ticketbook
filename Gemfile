@@ -17,6 +17,7 @@ gem "connection_pool", "~> 2.5"
 gem "aasm"          # seat lifecycle: available -> held -> booked
 gem "pundit"        # authorization
 
+
 # Front end (no Node: importmap + the Tailwind standalone binary)
 # sprockets-rails is what `rails new` generates, and tailwindcss-rails hooks its
 # build onto assets:precompile -- without it, every rails command fails to load.
@@ -27,6 +28,11 @@ gem "stimulus-rails"
 gem "tailwindcss-rails"
 gem "view_component"
 gem "pagy"
+
+# json 3.x removed the quirks_mode keyword that ActiveSupport 7.2's JSON encoder
+# still passes, which blows up on every session cookie write. Stay on 2.x until
+# Rails is upgraded.
+gem "json", "~> 2.9"
 
 gem "bootsnap", require: false
 gem "tzinfo-data", platforms: %i[windows jruby]
@@ -46,6 +52,9 @@ group :test do
 end
 
 group :development do
+  # Sign-in mails are captured, not sent: read them at /letter_opener.
+  # The non-web letter_opener would try to launch a browser inside the container.
+  gem "letter_opener_web"
   gem "annotaterb"
   gem "bullet"
   gem "web-console"

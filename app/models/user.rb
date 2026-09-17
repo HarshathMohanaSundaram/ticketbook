@@ -9,6 +9,19 @@ class User < ApplicationRecord
 
   normalizes :email, with: ->(email) { email.strip }
 
+  # The magic link. Rails signs the user id into the token and refuses it after
+  # fifteen minutes -- no column, no cleanup job, no token table. Changing the
+  # email invalidates any link already in flight, because the address is part of
+  # what gets signed.
+  SIGN_IN_TOKEN_WINDOW = 15.minutes
+
+  # Signing updated_at into the token makes the link single-use: SessionsController
+  # touches the user on a successful sign-in, so the link in the inbox -- and any
+  # earlier one -- stops verifying even inside the fifteen minutes.
+  generates_token_for :sign_in, expires_in: SIGN_IN_TOKEN_WINDOW do
+    "#{email}/#{updated_at&.to_i}"
+  end
+
   def display_name
     name.presence || email.split("@").first
   end
