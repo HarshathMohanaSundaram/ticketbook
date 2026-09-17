@@ -1,6 +1,7 @@
 Rails.application.routes.draw do
-  # A placeholder landing page. F3 replaces this with the trip search.
-  root "home#index"
+  root "trips#index"
+
+  resources :trips, only: %i[index show]
 
   # Email-only, passwordless: request a link, then click it.
   resource :session, only: %i[new create destroy]

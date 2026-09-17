@@ -1,0 +1,75 @@
+<% content_for :title, "Search buses" %>
+
+<h1 class="text-2xl font-semibold tracking-tight">Find your bus</h1>
+
+<%= form_with url: trips_path, method: :get, data: { turbo_action: "advance" },
+      class: "mt-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm" do |form| %>
+
+  <div class="grid gap-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end">
+    <div>
+      <%= form.label :from, "From", class: "block text-sm font-medium" %>
+      <%= form.select :from,
+            options_from_collection_for_select(@cities, :slug, :name, @form.from),
+            { include_blank: "Select city" },
+            class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </div>
+
+    <div>
+      <%= form.label :to, "To", class: "block text-sm font-medium" %>
+      <%= form.select :to,
+            options_from_collection_for_select(@cities, :slug, :name, @form.to),
+            { include_blank: "Select city" },
+            class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </div>
+
+    <div>
+      <%= form.label :date, "Travel date", class: "block text-sm font-medium" %>
+      <%= form.date_field :date, value: @form.date, min: Date.current,
+            class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </div>
+
+    <%= form.submit "Search",
+          class: "h-[42px] cursor-pointer rounded-md bg-slate-900 px-6 font-medium text-white hover:bg-slate-700" %>
+  </div>
+
+  <%= render "filters", form: form %>
+<% end %>
+
+<% if @form.errors.any? %>
+  <ul class="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+    <% @form.errors.full_messages.each do |message| %>
+      <li><%= message %></li>
+    <% end %>
+  </ul>
+<% end %>
+
+<% if @form.searchable? %>
+  <div class="mt-6 flex items-baseline justify-between">
+    <h2 class="text-lg font-medium">
+      <%= pluralize(@trips.size, "bus") %> from <%= @form.origin_city.name %>
+      to <%= @form.destination_city.name %>
+      on <%= @form.date.strftime("%-d %b") %>
+    </h2>
+    <% if @form.filters_applied? %>
+      <%= link_to "Clear #{pluralize(@form.filter_count, 'filter')}",
+            trips_path(from: @form.from, to: @form.to, date: @form.date),
+            class: "text-sm text-slate-600 underline" %>
+    <% end %>
+  </div>
+
+  <% if @trips.any? %>
+    <div class="mt-4 space-y-3">
+      <%= render partial: "trip_card", collection: @trips, as: :trip,
+                 locals: { available_counts: @available_counts } %>
+    </div>
+  <% else %>
+    <p class="mt-4 rounded-lg border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-slate-500">
+      No buses match this search.
+      <% if @form.filters_applied? %>Try removing a filter.<% else %>Try another date.<% end %>
+    </p>
+  <% end %>
+<% elsif !@form.attempted? %>
+  <p class="mt-6 rounded-lg border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-slate-500">
+    Pick where you are going and when.
+  </p>
+<% end %>
