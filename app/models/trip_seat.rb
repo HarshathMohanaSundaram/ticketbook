@@ -11,6 +11,13 @@ class TripSeat < ApplicationRecord
   validates :price_paise, numericality: { greater_than_or_equal_to: 0 }
 
   scope :available, -> { where(status: "available") }
+
+  # One grouped query for a whole page of results. Calling trip.available_seats_count
+  # per row would be one query per trip, which is the classic N+1 on the hottest
+  # page in the app.
+  def self.available_counts_by_trip(trip_ids)
+    available.where(trip_id: trip_ids).group(:trip_id).count
+  end
   scope :for_hold, ->(hold) { where(hold_id: hold) }
   scope :numbered, -> { order(:seat_number) }
 

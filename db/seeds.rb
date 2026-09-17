@@ -96,64 +96,95 @@ end
 drivers_by_operator = drivers.group_by(&:operator_id)
 
 puts "Seeding trips, seats and stops..."
+# origin, destination, journey minutes, departure hours (IST), base fare in paise
 ROUTES = [
-  [ "bangalore", "chennai",   6 * 60,  21, 90_000 ],
-  [ "chennai", "bangalore",   6 * 60,  22, 90_000 ],
-  [ "bangalore", "hyderabad", 9 * 60,  20, 130_000 ],
-  [ "hyderabad", "bangalore", 9 * 60,  21, 130_000 ],
-  [ "bangalore", "mysore",    3 * 60,   7, 45_000 ],
-  [ "bangalore", "coimbatore", 8 * 60, 22, 110_000 ]
+  [ "bangalore", "chennai",    6 * 60,  [ 6, 14, 21, 23 ], 90_000 ],
+  [ "chennai", "bangalore",    6 * 60,  [ 7, 15, 22 ],     90_000 ],
+  [ "bangalore", "hyderabad",  9 * 60,  [ 8, 20, 22 ],     130_000 ],
+  [ "hyderabad", "bangalore",  9 * 60,  [ 9, 19, 21 ],     130_000 ],
+  [ "bangalore", "mysore",     3 * 60,  [ 7, 11, 16, 19 ], 45_000 ],
+  [ "bangalore", "coimbatore", 8 * 60,  [ 10, 21, 23 ],    110_000 ]
 ].freeze
+
+# What a class of bus costs relative to the route's base fare. Without this every
+# bus on a route is priced identically and the fare filter looks broken.
+FARE_MULTIPLIER = {
+  [ "ac", "sleeper" ] => 1.25,
+  [ "ac", "seater" ] => 1.0,
+  [ "non_ac", "sleeper" ] => 0.9,
+  [ "non_ac", "seater" ] => 0.72
+}.freeze
+
+# A bus cannot be on two trips at once, so pick the first one that is free for
+# the whole window. Without this the seeded schedule looks plausible until a
+# reviewer notices KA01AB1234 leaving two cities simultaneously.
+def bus_free_at(buses, offset, departs_at, arrives_at)
+  buses.size.times do |i|
+    bus = buses[(offset + i) % buses.size]
+    clash = Trip.where(bus: bus)
+                .where("departs_at < ? AND arrives_at > ?", arrives_at, departs_at)
+                .exists?
+    return bus unless clash
+  end
+  nil
+end
 
 created = 0
 (0..6).each do |day_offset|
   date = Date.current.in_time_zone(TZ) + day_offset.days
 
-  ROUTES.each_with_index do |(origin, destination, minutes, hour, fare), index|
-    bus = buses[(day_offset + index) % buses.size]
-    departs_at = date.change(hour: hour, min: [ 0, 30 ].sample)
+  ROUTES.each_with_index do |(origin, destination, minutes, hours, fare), route_index|
+    hours.each_with_index do |hour, slot|
+      departs_at = date.change(hour: hour, min: [ 0, 15, 30, 45 ].sample)
+      arrives_at = departs_at + minutes.minutes
 
-    trip = Trip.find_or_initialize_by(bus: bus, departs_at: departs_at)
-    next if trip.persisted?
+      bus = bus_free_at(buses, day_offset + route_index + slot, departs_at, arrives_at)
+      next if bus.nil?
 
-    # A relief driver is rostered on anything over six hours.
-    crew = drivers_by_operator[bus.operator_id].sample(2)
+      trip = Trip.find_or_initialize_by(bus: bus, departs_at: departs_at)
+      next if trip.persisted?
 
-    trip.assign_attributes(
-      operator: bus.operator,
-      driver: crew.first,
-      relief_driver: (crew.second if minutes > 360),
-      origin_city: cities[origin],
-      destination_city: cities[destination],
-      arrives_at: departs_at + minutes.minutes,
-      base_fare_paise: fare,
-      status: "scheduled",
-      seats_total: bus.seats_total,
-      seats_available: bus.seats_total
-    )
-    trip.save!
-    created += 1
+      trip_fare = (fare * FARE_MULTIPLIER.fetch([ bus.bus_type, bus.berth_type ])).to_i
 
-    now = Time.current
-    TripSeat.insert_all!(
-      seat_numbers_for(bus).map do |number|
-        {
-          trip_id: trip.id, seat_number: number, status: "available",
-          berth_type: bus.berth_type,
-          # Lower berths carry a small premium, as they do in the real world.
-          price_paise: number.start_with?("L") ? (fare * 1.1).to_i : fare,
-          created_at: now, updated_at: now
-        }
+      # A relief driver is rostered on anything over six hours.
+      crew = drivers_by_operator[bus.operator_id].sample(2)
+
+      trip.assign_attributes(
+        operator: bus.operator,
+        driver: crew.first,
+        relief_driver: (crew.second if minutes > 360),
+        origin_city: cities[origin],
+        destination_city: cities[destination],
+        arrives_at: arrives_at,
+        base_fare_paise: trip_fare,
+        status: "scheduled",
+        seats_total: bus.seats_total,
+        seats_available: bus.seats_total
+      )
+      trip.save!
+      created += 1
+
+      now = Time.current
+      TripSeat.insert_all!(
+        seat_numbers_for(bus).map do |number|
+          {
+            trip_id: trip.id, seat_number: number, status: "available",
+            berth_type: bus.berth_type,
+            # Lower berths carry a small premium, as they do in the real world.
+            price_paise: number.start_with?("L") ? (trip_fare * 1.1).to_i : trip_fare,
+            created_at: now, updated_at: now
+          }
+        end
+      )
+
+      points[origin].each_with_index do |point, position|
+        BoardingStop.create!(trip: trip, stop_point: point,
+                             scheduled_at: departs_at + (position * 20).minutes, position: position)
       end
-    )
-
-    points[origin].each_with_index do |point, position|
-      BoardingStop.create!(trip: trip, stop_point: point,
-                           scheduled_at: departs_at + (position * 20).minutes, position: position)
-    end
-    points[destination].each_with_index do |point, position|
-      DroppingStop.create!(trip: trip, stop_point: point,
-                           scheduled_at: trip.arrives_at + (position * 20).minutes, position: position)
+      points[destination].each_with_index do |point, position|
+        DroppingStop.create!(trip: trip, stop_point: point,
+                             scheduled_at: arrives_at + (position * 20).minutes, position: position)
+      end
     end
   end
 end
