@@ -32,15 +32,29 @@ class SeatHoldService < ApplicationService
     ApplicationRecord.transaction do
       ActiveRecord::Base.connection.execute("SET LOCAL lock_timeout = '#{LOCK_TIMEOUT}'")
 
-      # Picking different seats after going back: the previous hold is released
-      # inside the same transaction, so the user never holds two sets at once.
-      release_previous_hold
+      # Everything is validated before anything is written. `return` inside a
+      # transaction block COMMITS in Rails, so an early exit after a write would
+      # persist half the work -- releasing this user's existing hold and then
+      # bailing out would leave them with nothing.
+      own_hold_ids = @user.holds.live.where(trip: @trip).pluck(:id)
+      seats = lock_seats(own_hold_ids)
+      requested = seats.select { |seat| @seat_ids.include?(seat.id) }
 
-      seats = lock_seats
-      return failure(:seat_not_found) unless seats.size == @seat_ids.size
+      return failure(:seat_not_found) unless requested.size == @seat_ids.size
 
-      taken = seats.reject(&:claimable?)
+      # A seat held by this user's own live hold is theirs to keep: going back and
+      # swapping {A,B} for {B,C} must not report B as taken.
+      taken = requested.reject { |seat| seat.claimable? || own_hold_ids.include?(seat.hold_id) }
       return failure(:seats_taken, seat_numbers: taken.map(&:seat_number).sort) if taken.any?
+
+      # Past every check, so mutating is safe. The previous hold's seats were
+      # locked above, in the same ascending-id pass.
+      release_previous_hold(own_hold_ids)
+
+      # The release detached some of these rows through its own AR objects, so
+      # our copies are stale. They are still locked by this transaction, so the
+      # reload is a cheap re-read of rows nobody else can touch.
+      seats = requested.each(&:reload)
 
       hold = Hold.create!(user: @user, trip: @trip,
                           expires_at: Hold::HOLD_WINDOW.from_now,
@@ -70,13 +84,17 @@ class SeatHoldService < ApplicationService
 
   private
 
-  # ORDER BY id is what stops overlapping multi-seat requests deadlocking.
-  def lock_seats
-    @trip.trip_seats.where(id: @seat_ids).order(:id).lock.to_a
+  # Locks the requested seats AND any seat this user is already holding on this
+  # trip, in one ascending-id pass. Two passes would mean acquiring a lower id
+  # after a higher one, which is exactly the ordering that deadlocks.
+  def lock_seats(own_hold_ids)
+    ids = @seat_ids | TripSeat.where(hold_id: own_hold_ids).pluck(:id)
+    @trip.trip_seats.where(id: ids).order(:id).lock.to_a
   end
 
-  def release_previous_hold
-    previous = @user.holds.live.where(trip: @trip).order(:id).lock.to_a
-    previous.each { |hold| HoldReleaseService.call(hold: hold, reason: :replaced, locked: true) }
+  def release_previous_hold(own_hold_ids)
+    Hold.where(id: own_hold_ids).order(:id).lock.each do |hold|
+      HoldReleaseService.call(hold: hold, reason: :replaced, locked: true)
+    end
   end
 end
