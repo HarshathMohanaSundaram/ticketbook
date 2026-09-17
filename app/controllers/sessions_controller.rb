@@ -46,6 +46,7 @@ class SessionsController < ApplicationController
 
   def destroy
     sign_out
-    redirect_to root_path, notice: "Signed out."
+    # 303 so Turbo follows the redirect with GET rather than repeating the DELETE.
+    redirect_to root_path, notice: "Signed out.", status: :see_other
   end
 end

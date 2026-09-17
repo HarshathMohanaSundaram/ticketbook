@@ -70,7 +70,7 @@ class Trip < ApplicationRecord
   # Both drivers on the run, in order, skipping the empty slots.
   def crew = [ driver, relief_driver ].compact
 
-  # Counted off trip_seats, never off the seats_available counter.
+  # Always counted off trip_seats: there is no availability counter to go stale.
   def available_seats_count = trip_seats.where(status: "available").count
 
   private

@@ -5,7 +5,9 @@ class TripsController < ApplicationController
   def index
     @cities = City.alphabetical
     @form = TripSearchForm.new(search_params)
-    @trips = TripSearchQuery.new(@form).call.to_a
+    query = TripSearchQuery.new(@form)
+    @trips = query.call.to_a
+    @empty_reason = query.empty_reason if @trips.empty?
     @available_counts = TripSeat.available_counts_by_trip(@trips.map(&:id))
   end
 
@@ -13,7 +15,8 @@ class TripsController < ApplicationController
     @trip = Trip.preload(:operator, :bus,
                          boarding_stops: :stop_point,
                          dropping_stops: :stop_point).find(params[:id])
-    @available_count = @trip.trip_seats.available.count
+    @seats = @trip.trip_seats.numbered.to_a
+    @available_count = @seats.count(&:claimable?)
   end
 
   private
