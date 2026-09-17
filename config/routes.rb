@@ -1,7 +1,12 @@
 Rails.application.routes.draw do
   root "trips#index"
 
-  resources :trips, only: %i[index show]
+  resources :trips, only: %i[index show] do
+    resources :holds, only: :create
+  end
+
+  # A hold is a short-lived claim on seats: five minutes to confirm it.
+  resources :holds, only: %i[show destroy]
 
   # Email-only, passwordless: request a link, then click it.
   resource :session, only: %i[new create destroy]

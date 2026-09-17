@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_09_17_071641) do
+ActiveRecord::Schema[7.2].define(version: 2026_09_17_143854) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "plpgsql"
@@ -41,7 +41,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_09_17_071641) do
     t.index ["user_id"], name: "index_bookings_on_user_id"
     t.check_constraint "refund_paise IS NULL OR refund_paise >= 0", name: "bookings_refund_non_negative"
     t.check_constraint "status::text <> 'cancelled'::text OR cancelled_at IS NOT NULL AND refund_paise IS NOT NULL", name: "bookings_cancelled_has_refund"
-    t.check_constraint "status::text = ANY (ARRAY['confirmed'::character varying, 'cancelled'::character varying, 'rescheduled'::character varying]::text[])", name: "bookings_status_valid"
+    t.check_constraint "status::text = ANY (ARRAY['confirmed'::character varying::text, 'cancelled'::character varying::text, 'rescheduled'::character varying::text])", name: "bookings_status_valid"
     t.check_constraint "total_paise >= 0", name: "bookings_total_non_negative"
   end
 
@@ -58,8 +58,8 @@ ActiveRecord::Schema[7.2].define(version: 2026_09_17_071641) do
     t.index ["bus_type", "berth_type"], name: "index_buses_on_bus_type_and_berth_type"
     t.index ["operator_id"], name: "index_buses_on_operator_id"
     t.index ["registration_number"], name: "index_buses_on_registration_number", unique: true
-    t.check_constraint "berth_type::text = ANY (ARRAY['sleeper'::character varying, 'seater'::character varying]::text[])", name: "buses_berth_type_valid"
-    t.check_constraint "bus_type::text = ANY (ARRAY['ac'::character varying, 'non_ac'::character varying]::text[])", name: "buses_bus_type_valid"
+    t.check_constraint "berth_type::text = ANY (ARRAY['sleeper'::character varying::text, 'seater'::character varying::text])", name: "buses_berth_type_valid"
+    t.check_constraint "bus_type::text = ANY (ARRAY['ac'::character varying::text, 'non_ac'::character varying::text])", name: "buses_bus_type_valid"
   end
 
   create_table "cities", force: :cascade do |t|
@@ -95,7 +95,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_09_17_071641) do
     t.index ["trip_id"], name: "index_holds_on_trip_id"
     t.index ["user_id"], name: "index_holds_on_user_id"
     t.check_constraint "expires_at > created_at", name: "holds_expire_after_creation"
-    t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'converted'::character varying, 'released'::character varying, 'expired'::character varying]::text[])", name: "holds_status_valid"
+    t.check_constraint "status::text = ANY (ARRAY['active'::character varying::text, 'converted'::character varying::text, 'released'::character varying::text, 'expired'::character varying::text])", name: "holds_status_valid"
     t.check_constraint "total_paise >= 0", name: "holds_total_non_negative"
   end
 
@@ -155,7 +155,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_09_17_071641) do
     t.index ["trip_id"], name: "index_trip_seats_on_trip_id"
     t.check_constraint "price_paise >= 0", name: "trip_seats_price_non_negative"
     t.check_constraint "status::text <> 'held'::text OR hold_id IS NOT NULL AND hold_expires_at IS NOT NULL", name: "trip_seats_held_has_a_hold"
-    t.check_constraint "status::text = ANY (ARRAY['available'::character varying, 'held'::character varying, 'booked'::character varying, 'blocked'::character varying]::text[])", name: "trip_seats_status_valid"
+    t.check_constraint "status::text = ANY (ARRAY['available'::character varying::text, 'held'::character varying::text, 'booked'::character varying::text, 'blocked'::character varying::text])", name: "trip_seats_status_valid"
   end
 
   create_table "trip_stops", force: :cascade do |t|
@@ -170,7 +170,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_09_17_071641) do
     t.index ["trip_id", "stop_point_id", "type"], name: "index_trip_stops_on_trip_and_point_and_type", unique: true
     t.index ["trip_id", "type", "position"], name: "index_trip_stops_on_trip_id_and_type_and_position"
     t.index ["trip_id"], name: "index_trip_stops_on_trip_id"
-    t.check_constraint "type::text = ANY (ARRAY['BoardingStop'::character varying, 'DroppingStop'::character varying]::text[])", name: "trip_stops_type_valid"
+    t.check_constraint "type::text = ANY (ARRAY['BoardingStop'::character varying::text, 'DroppingStop'::character varying::text])", name: "trip_stops_type_valid"
   end
 
   create_table "trips", force: :cascade do |t|
@@ -183,7 +183,6 @@ ActiveRecord::Schema[7.2].define(version: 2026_09_17_071641) do
     t.integer "base_fare_paise", null: false
     t.string "status", default: "scheduled", null: false
     t.integer "seats_total", default: 0, null: false
-    t.integer "seats_available", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "driver_id"
@@ -200,8 +199,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_09_17_071641) do
     t.check_constraint "arrives_at > departs_at", name: "trips_arrive_after_departure"
     t.check_constraint "base_fare_paise >= 0", name: "trips_fare_non_negative"
     t.check_constraint "relief_driver_id IS NULL OR relief_driver_id <> driver_id", name: "trips_relief_driver_differs"
-    t.check_constraint "seats_available >= 0 AND seats_available <= seats_total", name: "trips_seats_available_in_range"
-    t.check_constraint "status::text = ANY (ARRAY['scheduled'::character varying, 'departed'::character varying, 'cancelled'::character varying]::text[])", name: "trips_status_valid"
+    t.check_constraint "status::text = ANY (ARRAY['scheduled'::character varying::text, 'departed'::character varying::text, 'cancelled'::character varying::text])", name: "trips_status_valid"
   end
 
   create_table "users", force: :cascade do |t|

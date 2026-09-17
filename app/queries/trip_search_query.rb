@@ -19,6 +19,22 @@ class TripSearchQuery
     filtered.preload(:operator, :bus, :origin_city, :destination_city).limit(MAX_RESULTS)
   end
 
+  # Why did this search come back empty? "No buses" is true but unhelpful when the
+  # buses exist and have simply left for the day -- a user who was looking at one
+  # of them a minute ago reads that as a bug.
+  #
+  # Only runs when there are no results, so it costs nothing on the happy path.
+  def empty_reason
+    return nil unless @form.searchable?
+
+    on_route = Trip.between_cities(@form.origin_city.id, @form.destination_city.id).on_date(@form.date)
+
+    return :no_service   if on_route.none?
+    return :all_departed if on_route.bookable.none?
+
+    :filtered_out
+  end
+
   private
 
   def filtered

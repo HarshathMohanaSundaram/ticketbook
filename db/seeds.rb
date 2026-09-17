@@ -158,8 +158,7 @@ created = 0
         arrives_at: arrives_at,
         base_fare_paise: trip_fare,
         status: "scheduled",
-        seats_total: bus.seats_total,
-        seats_available: bus.seats_total
+        seats_total: bus.seats_total
       )
       trip.save!
       created += 1

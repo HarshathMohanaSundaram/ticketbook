@@ -63,10 +63,27 @@
                  locals: { available_counts: @available_counts } %>
     </div>
   <% else %>
-    <p class="mt-4 rounded-lg border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-slate-500">
-      No buses match this search.
-      <% if @form.filters_applied? %>Try removing a filter.<% else %>Try another date.<% end %>
-    </p>
+    <div class="mt-4 rounded-lg border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-slate-600">
+      <% case @empty_reason %>
+      <% when :all_departed %>
+        <p class="font-medium">Every bus on this route has already left for <%= @form.date.strftime("%-d %b") %>.</p>
+        <p class="mt-1 text-sm text-slate-500">
+          Booking closes <%= distance_of_time_in_words(Trip::BOOKING_CUTOFF) %> before departure.
+        </p>
+        <%= link_to "Show #{(@form.date + 1).strftime('%-d %b')} instead",
+              trips_path(@form.to_params.merge(date: @form.date + 1)),
+              class: "mt-4 inline-block rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700" %>
+      <% when :no_service %>
+        <p class="font-medium">We do not run buses on this route on <%= @form.date.strftime("%-d %b") %>.</p>
+        <%= link_to "Try #{(@form.date + 1).strftime('%-d %b')}",
+              trips_path(@form.to_params.merge(date: @form.date + 1)),
+              class: "mt-4 inline-block rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700" %>
+      <% else %>
+        <p class="font-medium">No buses match these filters.</p>
+        <%= link_to "Clear filters", trips_path(from: @form.from, to: @form.to, date: @form.date),
+              class: "mt-4 inline-block rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700" %>
+      <% end %>
+    </div>
   <% end %>
 <% elsif !@form.attempted? %>
   <p class="mt-6 rounded-lg border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-slate-500">

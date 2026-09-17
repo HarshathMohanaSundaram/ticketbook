@@ -1,0 +1,47 @@
+<% content_for :title, "Your seats are held" %>
+
+<div class="mx-auto max-w-2xl">
+  <div class="rounded-lg border border-amber-200 bg-amber-50 px-5 py-4"
+       data-controller="hold-countdown"
+       data-hold-countdown-expires-at-value="<%= @hold.expires_at.iso8601 %>">
+    <p class="text-sm text-amber-900">
+      Seats held. Confirm within
+      <span class="font-mono text-base font-semibold" data-hold-countdown-target="clock" aria-live="polite">
+        <%= Time.at(@hold.seconds_remaining).utc.strftime("%-M:%S") %>
+      </span>
+      or they go back on sale.
+    </p>
+  </div>
+
+  <div class="mt-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+    <h1 class="font-semibold"><%= @trip.operator_name %></h1>
+    <p class="mt-1 text-sm text-slate-600">
+      <%= @trip.origin_city.name %> &rarr; <%= @trip.destination_city.name %> &middot;
+      <%= l @trip.departs_at, format: :time_of_day %>, <%= @trip.departs_at.strftime("%-d %b") %> &middot;
+      <%= @trip.bus.label %>
+    </p>
+
+    <table class="mt-4 w-full text-sm">
+      <tbody>
+        <% @seats.each do |seat| %>
+          <tr class="border-b border-slate-100">
+            <td class="py-2">Seat <span class="font-medium"><%= seat.seat_number %></span>
+              <span class="text-slate-500">(<%= seat.berth_type.humanize %>)</span></td>
+            <td class="py-2 text-right"><%= number_to_currency(seat.price_paise / 100.0, unit: "&#8377;".html_safe, precision: 0) %></td>
+          </tr>
+        <% end %>
+        <tr>
+          <td class="py-2 font-semibold">Total</td>
+          <td class="py-2 text-right font-semibold"><%= number_to_currency(@hold.total_paise / 100.0, unit: "&#8377;".html_safe, precision: 0) %></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="mt-5 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+      <span class="cursor-not-allowed rounded-md bg-slate-300 px-5 py-2 font-medium text-white"
+            title="Booking confirmation is the next feature">Confirm booking</span>
+      <%= button_to "Release seats", hold_path(@hold), method: :delete,
+            class: "rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-100" %>
+    </div>
+  </div>
+</div>

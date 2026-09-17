@@ -33,8 +33,14 @@
       <p class="mt-0.5 text-xs <%= seats_left.zero? ? 'text-red-600' : 'text-slate-500' %>">
         <%= seats_left.zero? ? "Sold out" : "#{seats_left} seats left" %>
       </p>
-      <%= link_to "View seats", trip_path(trip),
-            class: "mt-2 inline-block rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-700" %>
+      <% if seats_left.positive? %>
+        <%= link_to "View seats", trip_path(trip),
+              class: "mt-2 inline-block rounded-md bg-slate-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-slate-700" %>
+      <% else %>
+        <span class="mt-2 inline-block cursor-not-allowed rounded-md bg-slate-200 px-4 py-1.5 text-sm font-medium text-slate-500">
+          Sold out
+        </span>
+      <% end %>
     </div>
   </div>
 
