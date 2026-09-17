@@ -1,0 +1,16 @@
+<% content_for :title, "Ticketbook" %>
+
+<div class="mx-auto max-w-2xl text-center">
+  <h1 class="text-3xl font-semibold tracking-tight">Book a bus ticket</h1>
+
+  <% if signed_in? %>
+    <p class="mt-3 text-slate-600">Signed in as <%= current_user.email %>.</p>
+    <p class="mt-8 rounded-md border border-dashed border-slate-300 bg-white px-6 py-10 text-sm text-slate-500">
+      Trip search lands here next.
+    </p>
+  <% else %>
+    <p class="mt-3 text-slate-600">Sign in with your email to search trips and book seats.</p>
+    <%= link_to "Sign in", new_session_path,
+          class: "mt-6 inline-block rounded-md bg-slate-900 px-5 py-2.5 font-medium text-white hover:bg-slate-700" %>
+  <% end %>
+</div>

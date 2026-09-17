@@ -1,0 +1,11 @@
+<p>Hello<%= " #{@user.name}" if @user.name.present? %>,</p>
+
+<p>Use the link below to sign in to Ticketbook. It expires in <%= @expires_in_minutes %>.</p>
+
+<p><%= link_to "Sign in to Ticketbook", @url %></p>
+
+<p>If the link does not work, paste this into your browser:<br>
+  <%= @url %></p>
+
+<p>If you did not request this, you can ignore this email -- nobody can sign in
+  without the link.</p>
