@@ -1,0 +1,8 @@
+# Concurrency must stay at or below the database pool (15), or workers queue up
+# waiting for a connection instead of doing work.
+:concurrency: 10
+
+:queues:
+  # Hold expiry frees inventory, so it must never sit behind a batch of emails.
+  - [critical, 3]
+  - [default, 1]
