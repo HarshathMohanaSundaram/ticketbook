@@ -8,7 +8,7 @@ gem "puma", ">= 6.0"
 
 # Background jobs + cache store
 gem "redis", ">= 5.0"
-gem "sidekiq", "~> 7.3"
+gem "sidekiq", "~> 8.0"
 # Schedules the sweeper. The per-hold expiry job is precise; the sweeper only
 # repairs the display if a scheduled job is ever lost, so it runs every 15 min.
 gem "sidekiq-cron"
