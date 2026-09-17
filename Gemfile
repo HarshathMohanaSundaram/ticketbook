@@ -14,7 +14,7 @@ gem "sidekiq", "~> 7.3"
 gem "sidekiq-cron"
 # connection_pool 3.0 changed TimedStack#pop's arity; Sidekiq 7.3 still calls the
 # old signature and its scheduler thread dies at boot. Stay on the 2.x line.
-gem "connection_pool", "~> 2.5"
+gem "connection_pool", "~> 3.0"
 
 # Domain
 gem "aasm"          # seat lifecycle: available -> held -> booked
