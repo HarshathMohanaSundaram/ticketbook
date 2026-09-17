@@ -35,7 +35,7 @@ gem "pagy"
 # json 3.x removed the quirks_mode keyword that ActiveSupport 7.2's JSON encoder
 # still passes, which blows up on every session cookie write. Stay on 2.x until
 # Rails is upgraded.
-gem "json", "~> 2.9"
+gem "json", "~> 3.0"
 
 gem "bootsnap", require: false
 gem "tzinfo-data", platforms: %i[windows jruby]
