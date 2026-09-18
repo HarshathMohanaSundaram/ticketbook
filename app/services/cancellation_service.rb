@@ -36,6 +36,11 @@ class CancellationService < ApplicationService
       release_seats(booking)
     end
 
+    # Seats just went back on sale for that corridor-day.
+    # Only reached when a cancellation actually happened -- the replay path
+    # returns from inside the transaction, above.
+    AvailabilityCache.touch!(booking.trip)
+
     success(booking)
   end
 

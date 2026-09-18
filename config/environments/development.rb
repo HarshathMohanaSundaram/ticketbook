@@ -17,19 +17,26 @@ Rails.application.configure do
   # Enable server timing.
   config.server_timing = true
 
-  # Enable/disable caching. By default caching is disabled.
-  # Run rails dev:cache to toggle caching.
-  if Rails.root.join("tmp/caching-dev.txt").exist?
-    config.action_controller.perform_caching = true
-    config.action_controller.enable_fragment_cache_logging = true
+  # Caching stays on in development rather than behind the usual
+  # tmp/caching-dev.txt toggle: search caching is a feature of this app, so it
+  # should be running whenever the app is.
+  # perform_caching stays on so Rails.cache is live in development; there are no
+  # fragment caches left to log.
+  config.action_controller.perform_caching = true
+  config.public_file_server.headers = { "Cache-Control" => "public, max-age=#{2.days.to_i}" }
 
-    config.cache_store = :memory_store
-    config.public_file_server.headers = { "Cache-Control" => "public, max-age=#{2.days.to_i}" }
-  else
-    config.action_controller.perform_caching = false
-
-    config.cache_store = :null_store
-  end
+  # The same Redis instance Sidekiq uses, on a different database. A cache
+  # version bumped inside a job has to be visible to the web process, which rules
+  # out :memory_store; database 1 keeps cache entries out of the queues in 0.
+  config.cache_store = :redis_cache_store, {
+    url: ENV.fetch("REDIS_URL", "redis://localhost:6379/0").sub(%r{/\d+\z}, "/1"),
+    namespace: "ticketbook",
+    expires_in: 1.hour,
+    # A Redis outage must degrade to uncached responses, never to a 500.
+    error_handler: lambda { |method:, returning:, exception:|
+      Rails.logger.error("[cache] #{method} failed: #{exception.class}: #{exception.message}")
+    }
+  }
 
   # Store uploaded files on the local file system (see config/storage.yml for options).
   config.active_storage.service = :local
