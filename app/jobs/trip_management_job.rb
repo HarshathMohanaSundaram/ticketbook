@@ -42,6 +42,16 @@ class TripManagementJob < ApplicationJob
   # A bus that has left is no longer "scheduled". Nothing reads this status in the
   # booking path, but an operator listing trips by status should see the truth.
   def mark_departed_trips
-    Trip.scheduled.where(departs_at: ...Time.current).update_all(status: "departed", updated_at: Time.current)
+    departed = Trip.scheduled.where(departs_at: ...Time.current).to_a
+    return 0 if departed.empty?
+
+    Trip.where(id: departed.map(&:id)).update_all(status: "departed", updated_at: Time.current)
+
+    # Those trips must stop appearing in cached result lists. Unique because one
+    # corridor-day usually loses several departures at once.
+    departed.uniq { |trip| [ trip.origin_city_id, trip.destination_city_id, trip.service_date ] }
+            .each { |trip| AvailabilityCache.touch!(trip) }
+
+    departed.size
   end
 end

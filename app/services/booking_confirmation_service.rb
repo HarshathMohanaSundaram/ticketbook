@@ -66,6 +66,11 @@ class BookingConfirmationService < ApplicationService
       hold.update!(status: "converted")
     end
 
+    # After the commit, never inside it: a rolled back booking must not invalidate
+    # anything. Search results are cached; seat availability never is, so this
+    # only matters for a list that might now show a sold-out trip.
+    AvailabilityCache.touch!(booking.trip)
+
     success(booking)
   rescue ActiveRecord::RecordNotUnique
     # Two confirmations raced past the fast path. One inserted; this is the other.

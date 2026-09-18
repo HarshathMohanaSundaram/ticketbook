@@ -47,6 +47,10 @@ class RescheduleService < ApplicationService
       release(old)
     end
 
+    # Both ends move: seats freed on the old departure, taken on the new one.
+    AvailabilityCache.touch!(@booking.trip)
+    AvailabilityCache.touch!(@target_trip)
+
     success(new_booking)
   rescue ActiveRecord::RecordNotUnique
     # Two reschedules raced past both checks; the index picked a winner.
