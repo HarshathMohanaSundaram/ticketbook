@@ -53,6 +53,14 @@ class TripSeat < ApplicationRecord
       transitions from: :held, to: :booked
     end
 
+    # Rescheduling books a seat without a hold: the pick and the commit are one
+    # locked transaction, so the five-minute reservation buys nothing. Kept as a
+    # separate event rather than widening `confirm`, so the ordinary flow still
+    # cannot book a seat nobody held.
+    event :book do
+      transitions from: :available, to: :booked
+    end
+
     event :release do
       transitions from: %i[held booked], to: :available
     end

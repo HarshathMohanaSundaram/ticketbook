@@ -58,6 +58,13 @@ class Booking < ApplicationRecord
   # The moment after which cancellation is refused.
   def cancellation_deadline = departs_at - CANCELLATION_CUTOFF
 
+  def reschedulable?(at = Time.current) = cancellable?(at)
+
+  # What this booking cost compared with the one it replaced. Positive means the
+  # passenger owes the difference; there is no gateway here, so it is recorded
+  # and displayed rather than charged.
+  def fare_difference_paise = rescheduled_from ? total_paise - rescheduled_from.total_paise : 0
+
   private
 
   # A trip_stop from another departure would print a plausible-looking place and
