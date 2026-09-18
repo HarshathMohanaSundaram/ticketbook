@@ -1,7 +1,7 @@
 FactoryBot.define do
   factory :city do
-    name { "MyString" }
-    state { "MyString" }
-    slug { "MyString" }
+    sequence(:name) { |n| "City #{n}" }
+    state { "Karnataka" }
+    sequence(:slug) { |n| "city-#{n}" }
   end
 end

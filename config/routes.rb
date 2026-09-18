@@ -13,7 +13,11 @@ Rails.application.routes.draw do
   end
 
   # Addressed by PNR rather than id -- see Booking#to_param.
-  resources :bookings, only: %i[index show]
+  resources :bookings, only: %i[index show] do
+    # Singular: a booking is cancelled once, and the record of it lives on the
+    # booking itself (cancelled_at, refund_paise).
+    resource :cancellation, only: :create
+  end
 
   # Email-only, passwordless: request a link, then click it.
   resource :session, only: %i[new create destroy]

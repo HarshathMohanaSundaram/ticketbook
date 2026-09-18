@@ -1,9 +1,9 @@
 FactoryBot.define do
   factory :driver do
-    operator { nil }
-    name { "MyString" }
-    phone { "MyString" }
-    licence_number { "MyString" }
-    licence_expires_on { "2026-09-17" }
+    operator
+    name { "Ramesh Kumar" }
+    phone { "9876543210" }
+    sequence(:licence_number) { |n| "KA0#{n}#{rand(10_000..99_999)}" }
+    licence_expires_on { 1.year.from_now.to_date }
   end
 end

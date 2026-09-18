@@ -53,6 +53,11 @@ class Booking < ApplicationRecord
 
   def seat_numbers = trip_seats.map(&:seat_number).sort
 
+  def cancellation_fee_paise = [ total_paise, CANCELLATION_FEE_PAISE ].min
+
+  # The moment after which cancellation is refused.
+  def cancellation_deadline = departs_at - CANCELLATION_CUTOFF
+
   private
 
   # A trip_stop from another departure would print a plausible-looking place and

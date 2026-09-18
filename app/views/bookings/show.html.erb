@@ -66,11 +66,42 @@
         </tbody>
       </table>
 
-      <% if @booking.confirmed? %>
-        <p class="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-500">
-          Free cancellation until <%= l(@booking.departs_at - Booking::CANCELLATION_CUTOFF, format: :time_of_day) %>,
-          minus a &#8377;<%= Booking::CANCELLATION_FEE_PAISE / 100 %> fee.
-        </p>
+      <% if @booking.cancelled? %>
+        <div class="mt-5 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+          <p class="font-medium text-slate-900">Cancelled <%= l @booking.cancelled_at, format: :day_and_time %></p>
+          <dl class="mt-2 space-y-0.5 text-slate-600">
+            <div class="flex justify-between"><dt>Fare paid</dt>
+              <dd><%= number_to_currency(@booking.total_paise / 100.0, unit: "&#8377;".html_safe, precision: 0) %></dd></div>
+            <div class="flex justify-between"><dt>Cancellation fee</dt>
+              <dd>&minus; <%= number_to_currency(@booking.cancellation_fee_paise / 100.0, unit: "&#8377;".html_safe, precision: 0) %></dd></div>
+            <div class="flex justify-between border-t border-slate-200 pt-1 font-medium text-slate-900">
+              <dt>Refund</dt>
+              <dd><%= number_to_currency(@booking.refund_paise / 100.0, unit: "&#8377;".html_safe, precision: 0) %></dd></div>
+          </dl>
+        </div>
+      <% elsif @booking.confirmed? %>
+        <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+          <% if @booking.cancellable? %>
+            <p class="text-xs text-slate-500">
+              Cancel until
+              <span class="font-medium text-slate-700"><%= l @booking.cancellation_deadline, format: :day_and_time %></span>
+              and get back
+              <%= number_to_currency(@booking.projected_refund_paise / 100.0, unit: "&#8377;".html_safe, precision: 0) %>
+              (&#8377;<%= @booking.cancellation_fee_paise / 100 %> fee).
+            </p>
+            <%= button_to "Cancel booking", booking_cancellation_path(@booking), method: :post,
+                  form: { data: { turbo_confirm: "Cancel this booking? " \
+                    "#{number_to_currency(@booking.projected_refund_paise / 100.0, unit: '₹', precision: 0)} " \
+                    "will be refunded after a #{number_to_currency(@booking.cancellation_fee_paise / 100.0, unit: '₹', precision: 0)} fee. " \
+                    "Cancellation closes #{l(@booking.cancellation_deadline, format: :day_and_time)}." } },
+                  class: "rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50" %>
+          <% else %>
+            <p class="text-xs text-slate-500">
+              Cancellation closed at <%= l @booking.cancellation_deadline, format: :day_and_time %>,
+              an hour before departure.
+            </p>
+          <% end %>
+        </div>
       <% end %>
     </div>
   </div>

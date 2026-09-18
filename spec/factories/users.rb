@@ -1,7 +1,6 @@
 FactoryBot.define do
   factory :user do
-    email { "" }
-    name { "MyString" }
-    phone { "MyString" }
+    sequence(:email) { |n| "passenger#{n}@example.com" }
+    name { "Test Passenger" }
   end
 end

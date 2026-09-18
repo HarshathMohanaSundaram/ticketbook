@@ -31,6 +31,11 @@ module App
     # Unit tests only: models, controllers and services. No view, helper or
     # routing specs -- markup is verified by looking at the page, not by
     # asserting on strings in it.
+    # Everything is stored in UTC (active_record.default_timezone stays :utc) but
+    # read and rendered in IST, because every passenger and every bus is here.
+    # Without this, l(trip.departs_at) prints 9:15 AM for a 2:45 PM departure.
+    config.time_zone = "Asia/Kolkata"
+
     config.active_job.queue_adapter = :sidekiq
 
     # Enqueue only once the surrounding transaction commits. Sidekiq is fast

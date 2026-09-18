@@ -3,8 +3,23 @@ class TripSeat < ApplicationRecord
 
   belongs_to :trip
   belongs_to :hold, optional: true
-  has_one :ticket, dependent: :restrict_with_error
-  has_one :booking, through: :ticket
+  # A seat accumulates tickets over time: cancel a booking and the seat goes back
+  # on sale, keeping the old ticket as history. So the base association is
+  # has_many, and the live one is a scoped has_one.
+  has_many :tickets, dependent: :restrict_with_error
+  has_many :bookings, through: :tickets
+
+  # The ticket that currently owns this seat. At most one can exist, because a
+  # seat is 'booked' for exactly one confirmed booking at a time.
+  has_one :current_ticket, -> { joins(:booking).merge(Booking.confirmed) },
+          class_name: "Ticket", inverse_of: :trip_seat, dependent: nil
+  has_one :current_booking, through: :current_ticket, source: :booking
+
+  # Everything else: cancelled, and later rescheduled. Deliberately not named
+  # cancelled_tickets -- a rescheduled booking's ticket is neither confirmed nor
+  # cancelled, and would fall through a two-way split.
+  has_many :past_tickets, -> { joins(:booking).where.not(bookings: { status: "confirmed" }) },
+           class_name: "Ticket", inverse_of: :trip_seat, dependent: nil
 
   validates :seat_number, presence: true,
                           uniqueness: { scope: :trip_id, case_sensitive: false }

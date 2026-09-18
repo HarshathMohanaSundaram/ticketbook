@@ -32,3 +32,6 @@ en:
   time:
     formats:
       time_of_day: "%-I:%M %p"
+      # Deadlines always carry the date: "1:45 PM, 19 Sep". A cancellation cutoff
+      # shown as a bare time is ambiguous when the bus leaves tomorrow.
+      day_and_time: "%-I:%M %p, %-d %b"

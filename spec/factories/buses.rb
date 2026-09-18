@@ -1,9 +1,10 @@
 FactoryBot.define do
   factory :bus do
-    operator { nil }
-    registration_number { "MyString" }
-    bus_type { "MyString" }
-    berth_type { "MyString" }
-    seats_total { 1 }
+    operator
+    sequence(:registration_number) { |n| "KA01AB#{1000 + n}" }
+    bus_type { "ac" }
+    berth_type { "seater" }
+    seats_total { 4 }
+    amenity_codes { %w[wifi] }
   end
 end
