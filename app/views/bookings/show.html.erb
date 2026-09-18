@@ -66,6 +66,23 @@
         </tbody>
       </table>
 
+      <% if @booking.rescheduled_from %>
+        <p class="mt-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
+          Rescheduled from <%= link_to @booking.rescheduled_from.pnr, @booking.rescheduled_from, class: "font-mono underline" %>
+          (<%= l @booking.rescheduled_from.departs_at, format: :day_and_time %>)<%
+          if @booking.fare_difference_paise != 0 %> &middot;
+            <%= number_to_currency(@booking.fare_difference_paise.abs / 100.0, unit: "&#8377;".html_safe, precision: 0) %>
+            <%= @booking.fare_difference_paise.positive? ? "more" : "less" %> than the original<% end %>
+        </p>
+      <% end %>
+
+      <% if @booking.rescheduled? && @booking.rescheduled_to %>
+        <p class="mt-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
+          Moved to <%= link_to @booking.rescheduled_to.pnr, @booking.rescheduled_to, class: "font-mono underline" %>
+          (<%= l @booking.rescheduled_to.departs_at, format: :day_and_time %>)
+        </p>
+      <% end %>
+
       <% if @booking.cancelled? %>
         <div class="mt-5 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
           <p class="font-medium text-slate-900">Cancelled <%= l @booking.cancelled_at, format: :day_and_time %></p>
@@ -89,6 +106,8 @@
               <%= number_to_currency(@booking.projected_refund_paise / 100.0, unit: "&#8377;".html_safe, precision: 0) %>
               (&#8377;<%= @booking.cancellation_fee_paise / 100 %> fee).
             </p>
+            <%= link_to "Reschedule", new_booking_reschedule_path(@booking),
+                  class: "rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:bg-slate-100" %>
             <%= button_to "Cancel booking", booking_cancellation_path(@booking), method: :post,
                   form: { data: { turbo_confirm: "Cancel this booking? " \
                     "#{number_to_currency(@booking.projected_refund_paise / 100.0, unit: '₹', precision: 0)} " \

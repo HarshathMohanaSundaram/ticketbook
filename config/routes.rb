@@ -17,6 +17,9 @@ Rails.application.routes.draw do
     # Singular: a booking is cancelled once, and the record of it lives on the
     # booking itself (cancelled_at, refund_paise).
     resource :cancellation, only: :create
+    # Singular: a booking is rescheduled into at most one successor, enforced by
+    # the unique index on rescheduled_from_id.
+    resource :reschedule, only: %i[new create]
   end
 
   # Email-only, passwordless: request a link, then click it.

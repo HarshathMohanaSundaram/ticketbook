@@ -1,9 +1,17 @@
 # This file is copied to spec/ when you run 'rails generate rspec:install'
 require 'spec_helper'
-ENV['RAILS_ENV'] ||= 'test'
+# Hard assignment, not ||=. The Docker image sets RAILS_ENV=development, so the
+# generated `||=` left the suite booting in development -- where Bundler never
+# requires the :test group and shoulda-matchers is undefined. Running specs in
+# any other environment is always a mistake, so there is nothing to preserve.
+ENV['RAILS_ENV'] = 'test'
 require_relative '../config/environment'
 # Prevent database truncation if the environment is production
 abort("The Rails environment is running in production mode!") if Rails.env.production?
+# Belt and braces. DatabaseCleaner truncates between threaded examples, so a
+# suite pointed at the wrong database would empty it. The line above only guards
+# production; this guards development too.
+abort("Refusing to run: RAILS_ENV is #{Rails.env}, expected test.") unless Rails.env.test?
 # Uncomment the line below in case you have `--require rails_helper` in the `.rspec` file
 # that will avoid rails generators crashing because migrations haven't been run yet
 # return unless Rails.env.test?

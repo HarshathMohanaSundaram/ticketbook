@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_09_17_143854) do
+ActiveRecord::Schema[7.2].define(version: 2026_09_18_032230) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "citext"
   enable_extension "plpgsql"
@@ -36,6 +36,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_09_17_143854) do
     t.index ["hold_id"], name: "index_bookings_on_hold_id_unique", unique: true, where: "(hold_id IS NOT NULL)"
     t.index ["pnr"], name: "index_bookings_on_pnr", unique: true
     t.index ["rescheduled_from_id"], name: "index_bookings_on_rescheduled_from_id"
+    t.index ["rescheduled_from_id"], name: "index_bookings_on_rescheduled_from_id_unique", unique: true, where: "(rescheduled_from_id IS NOT NULL)"
     t.index ["trip_id"], name: "index_bookings_on_trip_id"
     t.index ["user_id", "created_at"], name: "index_bookings_on_user_id_and_created_at"
     t.index ["user_id"], name: "index_bookings_on_user_id"

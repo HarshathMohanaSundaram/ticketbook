@@ -1,0 +1,51 @@
+<%# Same grid as the trip seat map, submitting to the reschedule action instead. %>
+<% rows = trip.bus.sleeper? ? seats.group_by { |s| s.seat_number[0] } : seats.group_by { |s| s.seat_number.to_i } %>
+
+<div class="mt-2 rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+     data-controller="seat-selection"
+     data-seat-selection-max-seats-value="<%= booking.tickets.count %>">
+
+  <%= form_with url: booking_reschedule_path(booking), method: :post do |form| %>
+    <%= hidden_field_tag :trip_id, trip.id %>
+    <%= hidden_field_tag :seat_ids, "", data: { seat_selection_target: "input" } %>
+
+    <div class="space-y-2 overflow-x-auto">
+      <% rows.each do |label, row_seats| %>
+        <div class="flex items-center gap-2">
+          <span class="w-6 shrink-0 text-xs font-medium text-slate-400"><%= label %></span>
+          <% row_seats.sort_by { |s| [ s.seat_number.length, s.seat_number ] }.each do |seat| %>
+            <% claimable = seat.claimable? %>
+            <button type="button"
+                    data-seat-selection-target="seat"
+                    data-action="click->seat-selection#toggle"
+                    data-seat-id="<%= seat.id %>" data-price="<%= seat.price_paise %>"
+                    <%= "disabled" unless claimable %>
+                    aria-pressed="false"
+                    aria-label="Seat <%= seat.seat_number %><%= claimable ? '' : ', unavailable' %>"
+                    class="h-10 w-12 shrink-0 rounded border text-xs font-medium transition
+                           <%= claimable ? 'border-emerald-600 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 cursor-pointer aria-pressed:border-slate-900 aria-pressed:bg-slate-900 aria-pressed:text-white'
+                                         : 'cursor-not-allowed border-slate-300 bg-slate-200 text-slate-400' %>">
+              <%= seat.seat_number %>
+            </button>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+
+    <p class="invisible mt-4 text-sm font-medium text-red-600" role="alert"
+       data-seat-selection-target="notice">&nbsp;</p>
+
+    <div class="mt-1 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+      <p class="text-sm text-slate-600">
+        <span data-seat-selection-target="count">0</span> of <%= booking.tickets.count %> selected
+        &middot; new total <span class="font-semibold text-slate-900" data-seat-selection-target="total">&#8377;0</span>
+        <span class="text-slate-400">(was <%= number_to_currency(booking.total_paise / 100.0, unit: "&#8377;".html_safe, precision: 0) %>)</span>
+      </p>
+      <%= form.submit "Move my booking here", disabled: true,
+            data: { seat_selection_target: "submit",
+                    turbo_confirm: "Move this booking to #{l(trip.departs_at, format: :day_and_time)}? " \
+                                   "Your current seats will be released." },
+            class: "cursor-pointer rounded-md bg-slate-900 px-5 py-2 font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300" %>
+    </div>
+  <% end %>
+</div>
