@@ -34,6 +34,12 @@ class Booking < ApplicationRecord
   # reviewer can try.
   def to_param = pnr
 
+  # Eight characters of Crockford-ish base32: no vowels, so it cannot spell
+  # anything, and no 0/O or 1/I to misread over the phone.
+  PNR_ALPHABET = "23456789BCDFGHJKLMNPQRSTVWXYZ".chars.freeze
+
+  def self.generate_pnr = Array.new(8) { PNR_ALPHABET.sample }.join
+
   # Cancellable only while confirmed and still at least an hour from departure.
   # Takes the clock so a service can check and record against the same instant,
   # and so specs can stand at the boundary without waiting for it.
@@ -46,6 +52,11 @@ class Booking < ApplicationRecord
   def projected_refund_paise = [ total_paise - CANCELLATION_FEE_PAISE, 0 ].max
 
   def seat_numbers = trip_seats.map(&:seat_number).sort
+
+  def cancellation_fee_paise = [ total_paise, CANCELLATION_FEE_PAISE ].min
+
+  # The moment after which cancellation is refused.
+  def cancellation_deadline = departs_at - CANCELLATION_CUTOFF
 
   private
 

@@ -1,8 +1,8 @@
 FactoryBot.define do
   factory :operator do
-    name { "MyString" }
-    slug { "MyString" }
-    rating { "9.99" }
-    ratings_count { 1 }
+    sequence(:name) { |n| "Operator #{n}" }
+    sequence(:slug) { |n| "operator-#{n}" }
+    rating { 4.0 }
+    ratings_count { 100 }
   end
 end

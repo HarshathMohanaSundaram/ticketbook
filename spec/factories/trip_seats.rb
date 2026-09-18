@@ -1,11 +1,9 @@
 FactoryBot.define do
   factory :trip_seat do
-    trip { nil }
-    hold { nil }
-    seat_number { "MyString" }
-    status { "MyString" }
-    berth_type { "MyString" }
-    price_paise { 1 }
-    hold_expires_at { "2026-09-17 11:54:59" }
+    trip
+    sequence(:seat_number) { |n| "#{n}A" }
+    status { "available" }
+    berth_type { "seater" }
+    price_paise { 90_000 }
   end
 end

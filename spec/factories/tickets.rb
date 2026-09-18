@@ -1,10 +1,10 @@
 FactoryBot.define do
   factory :ticket do
-    booking { nil }
-    trip_seat { nil }
-    passenger_name { "MyString" }
-    passenger_age { 1 }
-    gender { "MyString" }
-    price_paise { 1 }
+    booking
+    trip_seat
+    passenger_name { "Ravi Kumar" }
+    passenger_age { 34 }
+    gender { "male" }
+    price_paise { 90_000 }
   end
 end
