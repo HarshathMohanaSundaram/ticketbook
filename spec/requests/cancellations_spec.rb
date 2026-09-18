@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "Cancellations" do
+RSpec.describe "Cancellations", type: :request do
   let(:user) { create(:user) }
   let(:trip) { create(:trip, departs_at: 6.hours.from_now) }
   let(:booking) do
@@ -8,69 +8,138 @@ RSpec.describe "Cancellations" do
                                   departs_at: trip.departs_at)
   end
 
-  it "cancels a booking and reports the refund" do
-    sign_in(user)
+  describe "POST /bookings/:pnr/cancellation" do
+    context "when the window is open" do
+      before do
+        sign_in(user)
+        post booking_cancellation_path(booking)
+      end
 
-    post booking_cancellation_path(booking)
+      it "redirects back to the ticket" do
+        expect(response).to redirect_to(booking)
+      end
 
-    expect(response).to redirect_to(booking)
-    follow_redirect!
-    expect(flash[:notice]).to include("1,150")
-    expect(booking.reload).to be_cancelled
-    expect(booking.trip_seats.map(&:reload).map(&:status)).to all(eq("available"))
-  end
+      it "cancels the booking" do
+        expect(booking.reload).to be_cancelled
+      end
 
-  it "shows the cancel button only while cancellation is open" do
-    sign_in(user)
+      it "reports the refund in the flash" do
+        expect(flash[:notice]).to include("1,150")
+      end
 
-    get booking_path(booking)
-    expect(response.body).to include("Cancel booking")
-    # The deadline carries its date: a bare time is ambiguous when the bus
-    # leaves tomorrow.
-    expect(response.body).to include(I18n.l(booking.cancellation_deadline, format: :day_and_time))
+      it "returns the seats to the pool" do
+        expect(booking.trip_seats.map(&:reload)).to all(be_available)
+      end
+    end
 
-    travel_to(trip.departs_at - 30.minutes) do
-      get booking_path(booking)
-      expect(response.body).not_to include("Cancel booking")
-      expect(response.body).to include("Cancellation closed")
+    context "when the window has closed" do
+      before do
+        sign_in(user)
+        travel_to(trip.departs_at - 30.minutes) { post booking_cancellation_path(booking) }
+      end
+
+      it "explains that cancellation closed" do
+        expect(flash[:alert]).to include("Cancellation closed")
+      end
+
+      it "leaves the booking confirmed" do
+        expect(booking.reload).to be_confirmed
+      end
+    end
+
+    context "when the booking has already been cancelled" do
+      before do
+        sign_in(user)
+        post booking_cancellation_path(booking)
+        post booking_cancellation_path(booking)
+      end
+
+      it "says it was already cancelled" do
+        expect(flash[:notice]).to include("already cancelled")
+      end
+
+      it "keeps the original refund" do
+        expect(booking.reload.refund_paise).to eq(115_000)
+      end
+    end
+
+    context "when the booking belongs to someone else" do
+      before do
+        booking
+        sign_in(create(:user))
+        post booking_cancellation_path(booking)
+      end
+
+      it "returns not found rather than forbidden" do
+        expect(response).to have_http_status(:not_found)
+      end
+
+      it "leaves the booking confirmed" do
+        expect(booking.reload).to be_confirmed
+      end
+    end
+
+    context "when signed out" do
+      before { post booking_cancellation_path(booking) }
+
+      it "sends the visitor to sign in" do
+        expect(response).to redirect_to(new_session_path)
+      end
+
+      it "cancels nothing" do
+        expect(booking.reload).to be_confirmed
+      end
     end
   end
 
-  it "refuses inside the one hour window" do
-    sign_in(user)
+  describe "the ticket page" do
+    before { sign_in(user) }
 
-    travel_to(trip.departs_at - 30.minutes) do
-      post booking_cancellation_path(booking)
+    context "while cancellation is open" do
+      before { get booking_path(booking) }
+
+      it "offers the cancel button" do
+        expect(response.body).to include("Cancel booking")
+      end
+
+      it "shows the deadline with its date" do
+        expect(response.body).to include(I18n.l(booking.cancellation_deadline, format: :day_and_time))
+      end
+
+      it "shows what would be refunded" do
+        expect(response.body).to include("1,150")
+      end
     end
 
-    expect(flash[:alert]).to include("Cancellation closed")
-    expect(booking.reload).to be_confirmed
-  end
+    context "once the window has closed" do
+      before { travel_to(trip.departs_at - 30.minutes) { get booking_path(booking) } }
 
-  it "does not let one passenger cancel another's booking" do
-    sign_in(create(:user))
+      it "hides the cancel button" do
+        expect(response.body).not_to include("Cancel booking")
+      end
 
-    post booking_cancellation_path(booking)
+      it "says cancellation has closed" do
+        expect(response.body).to include("Cancellation closed")
+      end
+    end
 
-    # 404 rather than 403: the lookup is scoped to the current user, so the app
-    # never confirms that someone else's PNR exists.
-    expect(response).to have_http_status(:not_found)
-    expect(booking.reload).to be_confirmed
-  end
+    context "after cancelling" do
+      before do
+        post booking_cancellation_path(booking)
+        get booking_path(booking)
+      end
 
-  it "sends a signed out visitor to sign in" do
-    post booking_cancellation_path(booking)
+      it "shows the fee that was charged" do
+        expect(response.body).to include("Cancellation fee")
+      end
 
-    expect(response).to redirect_to(new_session_path)
-    expect(booking.reload).to be_confirmed
-  end
+      it "shows the refund" do
+        expect(response.body).to include("1,150")
+      end
 
-  it "shows the refund breakdown after cancellation" do
-    sign_in(user)
-    post booking_cancellation_path(booking)
-
-    get booking_path(booking)
-
-    expect(response.body).to include("Cancellation fee", "Refund", "1,150")
+      it "shows when it was cancelled" do
+        expect(response.body).to include("Cancelled")
+      end
+    end
   end
 end

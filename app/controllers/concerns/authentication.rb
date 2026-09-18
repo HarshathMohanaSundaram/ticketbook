@@ -18,10 +18,18 @@ module Authentication
   def signed_in? = current_user.present?
 
   def sign_in(user)
+    # Where they were heading before being bounced to sign-in. Captured first
+    # because reset_session below empties the session -- without this, following
+    # a magic link always landed on the home page instead of the seat map the
+    # visitor originally clicked.
+    destination = session[:return_to]
+
     # New session id on privilege change: an attacker who planted a session
     # cookie before sign-in does not get to keep it afterwards.
     reset_session
+
     session[:user_id] = user.id
+    session[:return_to] = destination if destination.present?
     @current_user = user
   end
 

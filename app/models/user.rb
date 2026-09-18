@@ -19,7 +19,9 @@ class User < ApplicationRecord
   # touches the user on a successful sign-in, so the link in the inbox -- and any
   # earlier one -- stops verifying even inside the fifteen minutes.
   generates_token_for :sign_in, expires_in: SIGN_IN_TOKEN_WINDOW do
-    "#{email}/#{updated_at&.to_i}"
+    # Nanoseconds, not seconds: touch() inside the same second would otherwise
+    # produce an identical token, and the link would not be burned after use.
+    "#{email}/#{updated_at&.strftime('%s%N')}"
   end
 
   def display_name

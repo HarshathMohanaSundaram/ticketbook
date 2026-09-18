@@ -27,6 +27,11 @@ Rails.application.configure do
   # prove, and a null store silently discards everything a spec writes.
   config.cache_store = :memory_store
 
+  # Collect jobs instead of pushing them at the real Redis: the suite can then
+  # assert what was enqueued, and a test run never leaves work in a queue that a
+  # running Sidekiq would pick up.
+  config.active_job.queue_adapter = :test
+
   # Render exception templates for rescuable exceptions and raise for other exceptions.
   config.action_dispatch.show_exceptions = :rescuable
 
