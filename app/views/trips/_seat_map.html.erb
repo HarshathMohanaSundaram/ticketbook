@@ -1,5 +1,5 @@
 <%# Seats grouped into rows: decks for a sleeper, rows of four for a seater. %>
-<% rows = trip.bus.sleeper? ? seats.group_by { |s| s.seat_number[0] } : seats.group_by { |s| s.seat_number.to_i } %>
+<% rows = trip.bus.sleeper? ? seats.group_by { |s| s.seat_number[0] } : seats.group_by { |s| s.seat_number.to_i }.sort.to_h %>
 
 <div class="mt-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
      data-controller="seat-selection"
