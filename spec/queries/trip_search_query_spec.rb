@@ -1,6 +1,8 @@
 require "rails_helper"
 
-RSpec.describe TripSearchQuery do
+RSpec.describe TripSearchQuery, type: :query do
+  subject(:query) { described_class.new(form) }
+
   let(:origin) { create(:city) }
   let(:destination) { create(:city) }
   let(:operator) { create(:operator, rating: 4.5) }
@@ -11,89 +13,155 @@ RSpec.describe TripSearchQuery do
                                departs_at: 2.days.from_now.change(hour: 21), seat_count: 4)
   end
 
-  def form(**overrides)
-    TripSearchForm.new({ from: origin.slug, to: destination.slug,
-                         date: trip.departs_at.to_date }.merge(overrides))
-  end
+  let(:base_params) { { from: origin.slug, to: destination.slug, date: trip.service_date } }
+  let(:form) { TripSearchForm.new(base_params) }
 
-  def count_queries
+  def queries_run
     count = 0
-    sub = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
       count += 1 unless payload[:name].to_s =~ /SCHEMA|TRANSACTION/
     end
     yield
-    ActiveSupport::Notifications.unsubscribe(sub)
+    ActiveSupport::Notifications.unsubscribe(subscriber)
     count
   end
 
-  describe "results" do
-    it "returns the same trips whether cached or not" do
-      first = described_class.new(form).call.to_a
-      second = described_class.new(form).call.to_a
-
-      expect(first).to eq([ trip ])
-      expect(second).to eq(first)
+  describe "#call" do
+    context "with a valid search" do
+      it "returns the matching trip" do
+        expect(query.call.to_a).to eq([ trip ])
+      end
     end
 
-    it "preserves the sort order taken from the cache" do
-      later = create(:trip, :with_seats, operator: operator, bus: create(:bus, operator: operator),
-                                         origin_city: origin, destination_city: destination,
-                                         # +1h keeps it on the same service date; +3h would
-                                         # roll past midnight and on_date would rightly drop it.
-                                         departs_at: trip.departs_at + 1.hour, seat_count: 4)
+    context "with an incomplete search" do
+      let(:form) { TripSearchForm.new(from: origin.slug) }
 
-      described_class.new(form(sort: "departure")).call.to_a   # warm
-      expect(described_class.new(form(sort: "departure")).call.to_a).to eq([ trip, later ])
+      it "returns nothing rather than every trip" do
+        expect(query.call).to be_empty
+      end
     end
 
-    it "skips the filtering query on a second search" do
-      warm = count_queries { described_class.new(form).call.to_a }
-      cached = count_queries { described_class.new(form).call.to_a }
+    context "when the search is repeated" do
+      before { query.call.to_a }
 
-      expect(cached).to be < warm
+      it "returns the same trips" do
+        expect(described_class.new(form).call.to_a).to eq([ trip ])
+      end
+
+      it "runs fewer queries than the first time" do
+        warm = queries_run { described_class.new(form).call.to_a }
+        Rails.cache.clear
+        cold = queries_run { described_class.new(form).call.to_a }
+
+        expect(warm).to be < cold
+      end
+    end
+
+    context "when several trips match" do
+      let!(:later) do
+        create(:trip, :with_seats, operator: operator, bus: create(:bus, operator: operator),
+                                   origin_city: origin, destination_city: destination,
+                                   departs_at: trip.departs_at + 1.hour, seat_count: 4)
+      end
+
+      before { described_class.new(TripSearchForm.new(base_params.merge(sort: "departure"))).call.to_a }
+
+      it "preserves the cached ordering" do
+        repeated = described_class.new(TripSearchForm.new(base_params.merge(sort: "departure"))).call
+        expect(repeated.to_a).to eq([ trip, later ])
+      end
+    end
+
+    context "when a trip is repriced after the search was cached" do
+      before do
+        query.call.to_a
+        trip.update!(base_fare_paise: 250_000)
+      end
+
+      # Only the ids are cached; the rows are read fresh, so stale prices cannot
+      # be served.
+      it "shows the new fare" do
+        expect(described_class.new(form).call.first.base_fare_paise).to eq(250_000)
+      end
+    end
+
+    context "when a trip is cancelled and the corridor is invalidated" do
+      before do
+        query.call.to_a
+        trip.update!(status: "cancelled")
+        AvailabilityCache.touch!(trip)
+      end
+
+      it "drops the trip from the results" do
+        expect(described_class.new(form).call).to be_empty
+      end
     end
   end
 
-  describe "the cache key" do
-    it "is stable when the amenity order changes" do
-      a = described_class.new(form(amenities: %w[wifi cctv])).cache_key
-      b = described_class.new(form(amenities: %w[cctv wifi])).cache_key
+  describe "#cache_key" do
+    context "when the same amenities arrive in a different order" do
+      let(:one) { described_class.new(TripSearchForm.new(base_params.merge(amenities: %w[wifi cctv]))) }
+      let(:other) { described_class.new(TripSearchForm.new(base_params.merge(amenities: %w[cctv wifi]))) }
 
-      expect(a).to eq(b)
+      it "is the same key, so one entry serves both" do
+        expect(one.cache_key).to eq(other.cache_key)
+      end
     end
 
-    it "differs when a filter value changes" do
-      expect(described_class.new(form(bus_type: "ac")).cache_key)
-        .not_to eq(described_class.new(form(bus_type: "non_ac")).cache_key)
+    context "when a filter value differs" do
+      it "is a different key" do
+        ac = described_class.new(TripSearchForm.new(base_params.merge(bus_type: "ac")))
+        non_ac = described_class.new(TripSearchForm.new(base_params.merge(bus_type: "non_ac")))
+
+        expect(ac.cache_key).not_to eq(non_ac.cache_key)
+      end
     end
 
-    it "differs per date and per corridor" do
-      expect(described_class.new(form(date: trip.departs_at.to_date + 1)).cache_key)
-        .not_to eq(described_class.new(form).cache_key)
+    context "when the date differs" do
+      it "is a different key" do
+        other_day = described_class.new(TripSearchForm.new(base_params.merge(date: trip.service_date + 1)))
+        expect(other_day.cache_key).not_to eq(query.cache_key)
+      end
     end
 
-    it "changes when the corridor's availability version is bumped" do
-      before_key = described_class.new(form).cache_key
-      AvailabilityCache.touch!(trip)
-
-      expect(described_class.new(form).cache_key).not_to eq(before_key)
+    context "when the corridor's availability version is bumped" do
+      it "is a different key" do
+        expect { AvailabilityCache.touch!(trip) }.to change { described_class.new(form).cache_key }
+      end
     end
   end
 
-  describe "serving stale data" do
-    it "does not serve a trip that was removed from the corridor after caching" do
-      described_class.new(form).call.to_a           # warm the cache
-      trip.update!(status: "cancelled")
-      AvailabilityCache.touch!(trip)                # what the services do
-
-      expect(described_class.new(form).call.to_a).to be_empty
+  describe "#empty_reason" do
+    context "when trips exist but every one has departed" do
+      it "reports that they have all left" do
+        travel_to(trip.departs_at + 1.hour) do
+          expect(described_class.new(TripSearchForm.new(base_params)).empty_reason).to eq(:all_departed)
+        end
+      end
     end
 
-    it "reads trip rows fresh even on a cache hit, so a repriced trip is current" do
-      described_class.new(form).call.to_a           # warm
-      trip.update!(base_fare_paise: 250_000)
+    context "when the route has no service that day" do
+      let(:form) { TripSearchForm.new(base_params.merge(date: trip.service_date + 3)) }
 
-      expect(described_class.new(form).call.first.base_fare_paise).to eq(250_000)
+      it "reports that the route is not served" do
+        expect(query.empty_reason).to eq(:no_service)
+      end
+    end
+
+    context "when filters excluded everything" do
+      let(:form) { TripSearchForm.new(base_params.merge(min_price: 99_999)) }
+
+      it "reports that the filters are to blame" do
+        expect(query.empty_reason).to eq(:filtered_out)
+      end
+    end
+
+    context "when the search itself is incomplete" do
+      let(:form) { TripSearchForm.new({}) }
+
+      it "reports nothing" do
+        expect(query.empty_reason).to be_nil
+      end
     end
   end
 end

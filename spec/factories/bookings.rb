@@ -14,8 +14,11 @@ FactoryBot.define do
 
       after(:create) do |booking, evaluator|
         evaluator.seat_count.times do |i|
-          seat = create(:trip_seat, trip: booking.trip, seat_number: "B#{i + 1}",
-                                    status: "booked", price_paise: booking.total_paise / evaluator.seat_count)
+          # No explicit seat_number: the trip_seat factory's sequence keeps it unique,
+          # and two bookings on one trip would otherwise collide on the unique
+          # (trip_id, seat_number) index.
+          seat = create(:trip_seat, trip: booking.trip, status: "booked",
+                                    price_paise: booking.total_paise / evaluator.seat_count)
           create(:ticket, booking: booking, trip_seat: seat, price_paise: seat.price_paise)
         end
       end

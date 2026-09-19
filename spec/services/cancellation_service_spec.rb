@@ -1,173 +1,207 @@
 require "rails_helper"
 
-RSpec.describe CancellationService do
+RSpec.describe CancellationService, type: :service do
+  subject(:result) { described_class.call(booking: booking, actor: actor) }
+
   let(:user) { create(:user) }
+  let(:actor) { user }
   let(:trip) { create(:trip, departs_at: 6.hours.from_now) }
-
-  def booking_for(total_paise: 120_000, seats: 1, departs_at: trip.departs_at, status: "confirmed")
+  let(:total_paise) { 120_000 }
+  let(:seat_count) { 1 }
+  let(:booking) do
     create(:booking, :with_seats, user: user, trip: trip, total_paise: total_paise,
-                                  departs_at: departs_at, status: status, seat_count: seats)
+                                  departs_at: trip.departs_at, seat_count: seat_count)
   end
 
-  describe "the refund rule" do
-    it "refunds the fare less the flat fifty rupee fee" do
-      booking = booking_for(total_paise: 120_000)
+  describe "#call" do
+    context "when the booking can still be cancelled" do
+      it "returns a success" do
+        expect(result).to be_success
+      end
 
-      result = described_class.call(booking: booking, actor: user)
+      it "marks the booking cancelled" do
+        result
+        expect(booking.reload).to be_cancelled
+      end
 
-      expect(result).to be_success
-      expect(booking.reload.refund_paise).to eq(115_000)   # Rs.1200 - Rs.50
-    end
+      it "records when it was cancelled" do
+        result
+        expect(booking.reload.cancelled_at).to be_present
+      end
 
-    it "never refunds below zero when the fare is under the fee" do
-      booking = booking_for(total_paise: 3_000)
+      it "refunds the fare less the flat fifty rupee fee" do
+        result
+        expect(booking.reload.refund_paise).to eq(115_000)
+      end
 
-      described_class.call(booking: booking, actor: user)
-
-      expect(booking.reload.refund_paise).to eq(0)
-    end
-
-    it "records the fee that was actually charged" do
-      booking = booking_for(total_paise: 120_000)
-      expect(booking.cancellation_fee_paise).to eq(5_000)
-    end
-  end
-
-  describe "the one hour cutoff" do
-    it "allows cancellation with more than an hour to spare" do
-      booking = booking_for(departs_at: 6.hours.from_now)
-
-      expect(described_class.call(booking: booking, actor: user)).to be_success
-    end
-
-    it "allows cancellation at exactly one hour before departure" do
-      departs_at = 3.hours.from_now
-      booking = booking_for(departs_at: departs_at)
-
-      travel_to(departs_at - 1.hour) do
-        expect(described_class.call(booking: booking, actor: user)).to be_success
+      it "bumps the corridor's cache version" do
+        expect { result }
+          .to change { AvailabilityCache.version_for(trip.origin_city_id, trip.destination_city_id, trip.service_date) }
+          .by(1)
       end
     end
 
-    it "refuses cancellation at fifty nine minutes" do
-      departs_at = 3.hours.from_now
-      booking = booking_for(departs_at: departs_at)
+    context "when the fare is smaller than the cancellation fee" do
+      let(:total_paise) { 3_000 }
 
-      travel_to(departs_at - 59.minutes) do
-        result = described_class.call(booking: booking, actor: user)
+      it "refunds nothing rather than a negative amount" do
+        result
+        expect(booking.reload.refund_paise).to eq(0)
+      end
 
-        expect(result).to be_failure
-        expect(result.error).to eq(:cutoff_passed)
-        expect(result.meta[:deadline]).to be_within(1.second).of(departs_at - 1.hour)
+      it "charges no more than the fare" do
+        expect(booking.cancellation_fee_paise).to eq(3_000)
       end
     end
 
-    it "refuses cancellation after the bus has left" do
-      departs_at = 2.hours.from_now
-      booking = booking_for(departs_at: departs_at)
+    context "when there is exactly one hour before departure" do
+      subject(:result) { described_class.call(booking: booking, actor: actor, at: trip.departs_at - 1.hour) }
 
-      travel_to(departs_at + 1.minute) do
-        expect(described_class.call(booking: booking, actor: user).error).to eq(:cutoff_passed)
+      it "allows the cancellation, because the brief says at least one hour" do
+        expect(result).to be_success
       end
     end
 
-    it "writes nothing when it refuses" do
-      departs_at = 3.hours.from_now
-      booking = booking_for(departs_at: departs_at)
+    context "when there are fifty nine minutes before departure" do
+      subject(:result) { described_class.call(booking: booking, actor: actor, at: trip.departs_at - 59.minutes) }
 
-      travel_to(departs_at - 10.minutes) do
-        described_class.call(booking: booking, actor: user)
+      include_examples "a refused operation", :cutoff_passed
+
+      it "reports the deadline that has passed" do
+        expect(result.meta[:deadline]).to be_within(1.second).of(trip.departs_at - 1.hour)
       end
 
-      expect(booking.reload).to be_confirmed
-      expect(booking.cancelled_at).to be_nil
-      expect(booking.refund_paise).to be_nil
-      expect(booking.trip_seats.map(&:status)).to all(eq("booked"))
-    end
-  end
+      it "leaves the booking confirmed" do
+        result
+        expect(booking.reload).to be_confirmed
+      end
 
-  describe "what happens to the seats and tickets" do
-    it "puts every seat back on sale" do
-      booking = booking_for(seats: 3, total_paise: 300_000)
+      it "records no cancellation time" do
+        result
+        expect(booking.reload.cancelled_at).to be_nil
+      end
 
-      described_class.call(booking: booking, actor: user)
+      it "records no refund" do
+        result
+        expect(booking.reload.refund_paise).to be_nil
+      end
 
-      expect(booking.trip_seats.map(&:reload).map(&:status)).to all(eq("available"))
-    end
-
-    it "keeps the tickets as a record of who was booked" do
-      booking = booking_for(seats: 2, total_paise: 200_000)
-
-      expect { described_class.call(booking: booking, actor: user) }
-        .not_to change { booking.tickets.count }
+      it "leaves the seats booked" do
+        result
+        expect(booking.trip_seats.map(&:reload)).to all(be_booked)
+      end
     end
 
-    it "leaves a released seat bookable by someone else" do
-      booking = booking_for
-      seat = booking.trip_seats.first
+    context "when the bus has already left" do
+      subject(:result) { described_class.call(booking: booking, actor: actor, at: trip.departs_at + 1.minute) }
 
-      described_class.call(booking: booking, actor: user)
-
-      expect(seat.reload).to be_claimable
-    end
-  end
-
-  describe "idempotency" do
-    it "returns the first cancellation instead of refunding twice" do
-      booking = booking_for(total_paise: 120_000)
-
-      first = described_class.call(booking: booking, actor: user)
-      second = described_class.call(booking: booking.reload, actor: user)
-
-      expect(second).to be_success
-      expect(second.meta[:replay]).to be(true)
-      expect(booking.reload.refund_paise).to eq(115_000)
-      expect(first.value.cancelled_at).to eq(booking.cancelled_at)
+      include_examples "a refused operation", :cutoff_passed
     end
 
-    it "does not re-release seats that someone else has since taken" do
-      booking = booking_for
-      seat = booking.trip_seats.first
-      described_class.call(booking: booking, actor: user)
+    context "with several seats on the booking" do
+      let(:seat_count) { 3 }
+      let(:total_paise) { 300_000 }
 
-      # The seat is sold again after the cancellation.
-      seat.reload.update!(status: "booked")
+      it "returns every seat to the pool" do
+        result
+        expect(booking.trip_seats.map(&:reload)).to all(be_available)
+      end
 
-      described_class.call(booking: booking.reload, actor: user)
+      it "makes each seat claimable again" do
+        result
+        expect(booking.trip_seats.map(&:reload)).to all(be_claimable)
+      end
 
-      expect(seat.reload).to be_booked
+      it "keeps the tickets as a record of who was booked" do
+        expect { result }.not_to change { booking.tickets.count }
+      end
+
+      it "moves the tickets into the seats' history" do
+        result
+        expect(booking.trip_seats.first.reload.past_tickets).not_to be_empty
+      end
+
+      it "leaves no seat claiming a live ticket" do
+        result
+        expect(booking.trip_seats.map(&:reload).map(&:current_ticket)).to all(be_nil)
+      end
     end
-  end
 
-  describe "authorisation" do
-    it "refuses a booking that belongs to someone else" do
-      booking = booking_for
+    context "when the booking has already been cancelled" do
+      before { described_class.call(booking: booking, actor: actor) }
 
-      result = described_class.call(booking: booking, actor: create(:user))
+      include_examples "a replayed operation"
 
-      expect(result.error).to eq(:forbidden)
-      expect(booking.reload).to be_confirmed
+      it "does not refund a second time" do
+        result
+        expect(booking.reload.refund_paise).to eq(115_000)
+      end
+
+      it "keeps the original cancellation time" do
+        original = booking.reload.cancelled_at
+        result
+        expect(booking.reload.cancelled_at).to eq(original)
+      end
     end
-  end
 
-  describe "concurrency" do
-    self.use_transactional_tests = false
+    context "when a seat was sold again after the cancellation" do
+      before do
+        described_class.call(booking: booking, actor: actor)
+        booking.trip_seats.first.reload.update!(status: "booked")
+      end
 
-    it "produces one cancellation when two requests arrive together" do
-      booking = booking_for(total_paise: 120_000)
+      it "does not release the seat out from under its new owner" do
+        described_class.call(booking: booking.reload, actor: actor)
+        expect(booking.trip_seats.first.reload).to be_booked
+      end
+    end
 
-      results = 2.times.map do
-        Thread.new do
-          ActiveRecord::Base.connection_pool.with_connection do
-            described_class.call(booking: Booking.find(booking.id), actor: user)
+    context "when the booking belongs to someone else" do
+      let(:actor) { create(:user) }
+
+      include_examples "a refused operation", :forbidden
+
+      it "leaves the booking confirmed" do
+        result
+        expect(booking.reload).to be_confirmed
+      end
+    end
+
+    context "when two cancellations arrive at once", :concurrency do
+      self.use_transactional_tests = false
+
+      let!(:target) { booking }
+
+      let(:results) do
+        booking_id = target.id
+        user_id = user.id
+
+        2.times.map do
+          Thread.new do
+            ActiveRecord::Base.connection_pool.with_connection do
+              described_class.call(booking: Booking.find(booking_id), actor: User.find(user_id))
+            end
           end
-        end
-      end.map(&:value)
+        end.map(&:value)
+      end
 
-      expect(results).to all(be_success)
-      expect(results.count { |r| r.meta[:replay] }).to eq(1)
-      expect(booking.reload.refund_paise).to eq(115_000)
-      expect(booking.trip_seats.map(&:reload).map(&:status)).to all(eq("available"))
+      it "succeeds for both requests" do
+        expect(results).to all(be_success)
+      end
+
+      it "treats exactly one of them as a replay" do
+        expect(results.count { |r| r.meta[:replay] }).to eq(1)
+      end
+
+      it "refunds only once" do
+        results
+        expect(target.reload.refund_paise).to eq(115_000)
+      end
+
+      it "releases the seats once" do
+        results
+        expect(target.trip_seats.map(&:reload)).to all(be_available)
+      end
     end
   end
 end
