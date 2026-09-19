@@ -21,7 +21,6 @@ Ruby 3.3.6 · Rails 7.2 · PostgreSQL 16 · Redis · Sidekiq · Hotwire · Tailw
 9. [Database design](#9-database-design)
 10. [How the code is organised](#10-how-the-code-is-organised)
 11. [Tests](#11-tests)
-12. [What I left out, and why](#12-what-i-left-out-and-why)
 
 ---
 
@@ -224,6 +223,19 @@ TEST 2  overlapping pairs -- the classic deadlock shape
 ```
 
 The same scenario runs in the test suite, so it cannot quietly break later.
+
+### The trade-off in this approach
+
+The guarantee lives in **application code** — a transaction, a row lock, a status
+column — rather than in the schema. A future service that updated
+`trip_seats.status` *without* taking the lock would bring the bug back, and no
+constraint would stop it.
+
+The stronger alternative is a PostgreSQL exclusion constraint, where the database
+itself refuses overlapping claims no matter which code asked. I chose the
+readable mechanism instead: `.lock` is something any Rails developer can read and
+predict on day one, and the 12-thread test proves it holds. At much higher
+contention I would move the rule into the database.
 
 ---
 
@@ -533,44 +545,3 @@ and clean up by truncating instead, because a thread on its own connection
 cannot see another thread's uncommitted work.
 
 ---
-
-## 12. What I left out, and why
-
-Deliberate choices, not oversights:
-
-**Payments.** There is no payment gateway. A cancellation records what should be
-refunded but no money moves. The five-minute hold exists precisely so that
-payment can happen without holding inventory hostage — that is where a gateway
-would slot in.
-
-**Live seat updates.** If somebody else takes a seat while you are looking at
-the map, you find out when you submit, not instantly. Turbo Streams over
-WebSocket would push it live; it is the nicest thing not built here.
-
-**Partial cancellation.** You cancel a whole booking, not one seat out of three.
-
-**Magic links are not rate limited.** In production this needs throttling so the
-sign-in endpoint cannot be used to spam an inbox.
-
-**Operator and admin screens.** The models support operators and drivers, but
-there is no interface for staff to publish trips — trips come from seed data.
-
-**Seat layouts are generated, not stored.** Sleeper buses get `L1…L15, U1…U15`
-and seaters get rows of four. A real system would let an operator define the
-exact layout of each bus.
-
-### One trade-off worth naming
-
-The no-double-booking guarantee lives in **application code** — a transaction, a
-row lock, a status column — rather than in the schema. A future service that
-updated `trip_seats.status` *without* taking the lock would reintroduce the bug,
-and no constraint would stop it.
-
-The alternative is a PostgreSQL exclusion constraint, where the database itself
-refuses overlapping claims regardless of which code asked. That is stronger, but
-it is a modelling idea most Rails developers have not met, and `.lock` is
-something any reviewer can read and predict on day one.
-
-At this scale I chose the readable mechanism, and covered it with a test that
-runs 12 threads at a single seat. At much higher contention, I would move the
-rule into the database.

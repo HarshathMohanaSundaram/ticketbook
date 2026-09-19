@@ -25,7 +25,8 @@
     <div>
       <%= form.label :date, "Travel date", class: "block text-sm font-medium" %>
       <%= form.date_field :date, value: @form.date, min: Date.current,
-            class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+            data: { controller: "date-field", action: "click->date-field#open" },
+            class: "cursor-pointer mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
     </div>
 
     <%= form.submit "Search",
