@@ -28,7 +28,7 @@
             <%= button_to "Sign out", session_path, method: :delete,
                   class: "rounded-md border border-slate-300 px-3 py-1.5 font-medium hover:bg-slate-100" %>
           <% else %>
-            <%= link_to "Sign in", new_session_path,
+            <%= link_to "Sign in", new_session_path(return_to: request.get? ? request.fullpath : nil),
                   class: "rounded-md bg-slate-900 px-3 py-1.5 font-medium text-white hover:bg-slate-700" %>
           <% end %>
         </div>

@@ -6,7 +6,11 @@ class SessionsController < ApplicationController
   # than erroring with "no such user", which would also leak who has registered.
 
   def new
-    redirect_to root_path, notice: "You are already signed in." if signed_in?
+    return redirect_to root_path, notice: "You are already signed in." if signed_in?
+
+    # A "Sign in to book" link carries where the visitor was, because that link
+    # never passes through require_authentication -- the seat map is public.
+    remember_destination(params[:return_to])
   end
 
   def create

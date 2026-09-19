@@ -56,7 +56,7 @@
               data: { seat_selection_target: "submit" },
               class: "cursor-pointer rounded-md bg-slate-900 px-5 py-2 font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300" %>
       <% else %>
-        <%= link_to "Sign in to book", new_session_path,
+        <%= link_to "Sign in to book", new_session_path(return_to: trip_path(trip)),
               class: "rounded-md bg-slate-900 px-5 py-2 font-medium text-white hover:bg-slate-700" %>
       <% end %>
     </div>
